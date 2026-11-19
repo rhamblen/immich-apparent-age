@@ -1,0 +1,6 @@
+# Phase 1 (extract) only. Phase 2 adds the model runtime separately, so that a
+# machine doing extraction does not need torch installed.
+httpx>=0.27,<1.0
+PyYAML>=6.0,<7.0
+Pillow>=10.3,<13.0
+numpy>=1.26,<3.0

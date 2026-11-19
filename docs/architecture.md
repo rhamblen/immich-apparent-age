@@ -20,7 +20,7 @@
 └───────────┬─────────────┘
             │  GET /api/people                  → person ids
             │  POST /api/search/metadata        → assets for those people
-            │  GET /api/assets/{id}             → people[].faces[] bounding boxes
+            │  GET /api/faces?id={assetId}      → bounding boxes + owning person
             │  GET /api/assets/{id}/thumbnail   → pixels
             ▼
 ┌─────────────────────────┐
@@ -49,16 +49,22 @@
 
 | Endpoint | Used for | Notes |
 |---|---|---|
-| `GET /api/people` | Person ids, names, and whether `birthDate` is set | Paginated. Only people with a birth date can yield a residual. |
-| `POST /api/search/metadata` | Assets containing a given person | Paginated; returns `localDateTime`, which is the date used for true age. |
-| `GET /api/assets/{id}` | `people[].faces[]` with `boundingBoxX1..Y2`, `imageWidth`, `imageHeight` | The face boxes are the reason no detector is needed. See ADR 0004. |
-| `GET /api/assets/{id}/thumbnail` | Pixels to crop | Must match the rendition the boxes were computed against. |
+| `GET /api/people` | Person ids, names, and whether `birthDate` is set | Envelope is `{people, total, hidden, hasNextPage?}`; `page`/`size`, size default 500, max 1000. Only people with a birth date can yield a residual. |
+| `POST /api/search/metadata` | Assets containing a given person | Filter with `filter.personIds.any`; page with `cursor`/`nextCursor`. Returns `localDateTime`, which is the date used for true age. |
+| `GET /api/faces?id={assetId}` | `AssetFaceResponseDto[]` — `boundingBoxX1..Y2`, `imageWidth`, `imageHeight`, `person`, `sourceType` | The face boxes, and the reason no detector is needed. See ADR 0004. |
+| `GET /api/assets/{id}/thumbnail` | Pixels to crop | `size` is an AssetMediaSize: `thumbnail`, `preview`, `fullsize`. Must match the frame the boxes were computed against. |
 | `GET /api/assets/{id}/original` | Pixels at full resolution | Only where a crop would otherwise fall below the size gate. |
 | `POST /api/tags`, `PUT /api/tags/{id}/assets` | Phase 5 write-back | The only writes in the project. |
 
-**Gotcha.** The Immich MCP server available in some tooling trims `faces[]` out of its asset detail response, exposing only `people[]`. The REST API does return the bounding boxes. Build against the REST API with an API key, not against the MCP.
+Auth is the `x-api-key` header. Field shapes above were verified against the Immich OpenAPI spec (info.version 3.4.0-rc.0) on 2026-11-19.
+
+**Gotcha.** Face boxes are **not** on the asset. `GET /api/assets/{id}` returns `people[]` as `PersonResponseDto`, which has no `faces` field — the boxes come from the separate `GET /api/faces` endpoint above. The spec labels that endpoint's `id` parameter a "Face ID" while describing it as returning an asset's faces; an asset id is the reading the Immich web client uses, and `extract.py --probe` verifies it against the live server.
+
+**Gotcha.** Both the obvious search parameters are deprecated. Top-level `personIds` is deprecated since v3.2.0 in favour of `filter.personIds`, and `page` in favour of `cursor`/`nextCursor`. The client prefers the modern shape and falls back automatically if a server rejects it.
 
 **Gotcha.** Bounding boxes are expressed against a specific rendition and carry their own `imageWidth`/`imageHeight`. Scale by the ratio of actual image dimensions to those values before cropping — do not assume the original's dimensions.
+
+**Gotcha.** Faces are bound to a person by the `person.id` on each face record. An unassigned face has `person: null`, so filtering by person id is both the identity check and the filter.
 
 ## Schema sketch
 

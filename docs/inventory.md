@@ -46,9 +46,11 @@ Implication for Phase 1: filling in the missing birth dates in Immich is the che
 - Asset listing and per-person asset queries are both served by `POST /api/search/metadata`.
 - Tag endpoints exist for the optional Phase 5 write-back: `/api/tags`, `/api/tags/{id}/assets`.
 
+Field-level shapes were subsequently verified against the Immich OpenAPI spec (info.version 3.4.0-rc.0) rather than inferred from responses; the result is in [`architecture.md`](architecture.md), and it corrected gotcha 1 below.
+
 ## Gotchas discovered during inventory
 
-1. **The MCP server trims face data.** The Immich MCP tooling returns `people[]` on an asset without the nested `faces[]` array, so no bounding boxes. The REST API does return them. Phase 1 must talk to the REST API directly with an API key.
-2. **Per-person asset counts need verifying.** A person-assets query through the MCP returned a total of 1 for someone who plainly appears in many photographs. Before trusting any coverage numbers, confirm the pagination and filter semantics of `POST /api/search/metadata` with `personIds` directly against the REST API.
+1. **Face boxes are on their own endpoint, not the asset.** *(Corrected 2026-11-19.)* This was first recorded as "the MCP server trims face data", on the assumption that `GET /api/assets/{id}` returns `people[].faces[]` and the MCP was stripping it. It does not: `people[]` is `PersonResponseDto`, which has no `faces` field in either the REST API or the MCP. Bounding boxes come from `GET /api/faces?id={assetId}`, which the MCP does not expose at all — so the conclusion stands (Phase 1 must use the REST API with an API key) even though the reason was wrong.
+2. **Per-person asset counts need verifying.** A person-assets query through the MCP returned a total of 1 for someone who plainly appears in many photographs. Note also that the obvious search parameters are deprecated: top-level `personIds` since v3.2.0 in favour of `filter.personIds`, and `page` in favour of `cursor`/`nextCursor`. The MCP may be using the legacy form. Confirm counts against the REST API before trusting any coverage numbers.
 3. **Bounding boxes are rendition-relative.** They carry their own `imageWidth`/`imageHeight`, which will not match the original asset's `width`/`height`. Scale before cropping.
 4. **Dates are not uniformly trustworthy.** Scanned and imported photographs may carry an import date rather than a capture date. A true age computed from a wrong asset date is silently wrong, which is more dangerous than a missing one — Phase 1 should flag assets whose `localDateTime` looks like an import artefact (for example, a date that implies a negative age, or a cluster of assets sharing one timestamp).

@@ -2,7 +2,23 @@
 
 **Measures how old the faces in an [Immich](https://immich.app) library *look*, and compares that against how old they actually were.** Immich already knows everyone's real age on every photo; the interesting question is the gap between that and what an age-estimation model guesses — in other words, does someone look good for their age?
 
-> Status: **Phase 0 — proposal and design.** No code yet. The rationale lives in [`docs/project-plan.md`](docs/project-plan.md), the method decisions in [`docs/decisions/`](docs/decisions/), and the Immich integration in [`docs/architecture.md`](docs/architecture.md).
+> Status: **Phase 1 — extraction.** The extractor is written and unit-tested offline; it has not yet been run against a live Immich server. The rationale lives in [`docs/project-plan.md`](docs/project-plan.md), the method decisions in [`docs/decisions/`](docs/decisions/), and the Immich integration in [`docs/architecture.md`](docs/architecture.md).
+
+## Quick start
+
+```bash
+python -m venv .venv && ./.venv/Scripts/python.exe -m pip install -r requirements.txt
+cp config.example.yaml config.yaml          # then edit: host, API key, people
+export IMMICH_API_KEY=...                   # or put the key in config.yaml
+
+python extract.py --probe                   # check assumptions against your server
+python extract.py --discover-people         # list people with a birth date set
+python extract.py --limit 20 --dry-run      # sample, measure, write nothing
+python extract.py                           # the real extraction
+python verify.py                            # contact sheets + coverage report
+```
+
+Run the probe first. It checks every assumption the client makes against your actual server, including the one genuine ambiguity in the Immich spec, and everything downstream depends on it.
 
 ## Why build this
 
@@ -37,10 +53,10 @@ Immich hands over the face boxes, so this project never runs its own detector:
 ```
 Immich REST API                     this project
 ───────────────                     ────────────
-GET /api/people            ──▶  person ids (birth dates come from local config)
-GET /api/search/metadata   ──▶  assets containing those people, with dates
-GET /api/assets/{id}       ──▶  people[].faces[] → boundingBoxX1..Y2 + imageWidth/Height
-GET /api/assets/{id}/thumbnail ─▶ pixels to crop from
+GET  /api/people              ──▶  person ids (birth dates come from local config)
+POST /api/search/metadata     ──▶  assets containing those people, with dates
+GET  /api/faces?id={assetId}  ──▶  boundingBoxX1..Y2 + imageWidth/imageHeight
+GET  /api/assets/{id}/thumbnail ▶  pixels to crop from
                                       │
                                       ▼
                             crop ▶ quality gate ▶ apparent-age model

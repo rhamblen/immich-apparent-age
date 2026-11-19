@@ -5,7 +5,7 @@
 | Phase | Name | State |
 |---|---|---|
 | 0 | Proposal and design | ☑ done |
-| 1 | Extract — faces and ground truth | ☐ not started |
+| 1 | Extract — faces and ground truth | ◐ in progress — code written and unit-tested, not yet run against the server |
 | 2 | Estimate — apparent age | ☐ not started |
 | 3 | Calibrate and analyse | ☐ not started |
 | 4 | Report | ☐ not started |
@@ -115,8 +115,8 @@
 
 | # | Question | Notes |
 |---|---|---|
-| 1 | MiVOLO or DEX apparent-age weights, or both as a cross-check? | MiVOLO is stronger and can use body context, but wants a GPU. Running both is the honest option; decide after the Phase 2 sanity check. |
-| 2 | Is a GPU available for the estimation pass? | Sets batch size, and whether MiVOLO is practical across the whole library rather than a sample. |
+| 1 | MiVOLO or DEX apparent-age weights, or both as a cross-check? | MiVOLO is stronger and can use body context. Running both is the honest option; decide after the Phase 2 sanity check. |
+| ~~2~~ | ~~Is a GPU available for the estimation pass?~~ | **Settled 2026-11-19:** yes — an RTX 5070 Ti with 16 GB. MiVOLO is practical across the whole library rather than a sample, so Phase 2 plans for it as the primary model. |
 | 3 | Scanned and pre-digital photographs: include or segregate? | They carry the most interesting age range and the worst confounds. Leaning towards extracting them but reporting them as a separate stratum. |
 | 4 | Unnamed people clusters — any role? | No birth date means no residual, so they cannot contribute. Possible later use: apparent age as a sorting aid when naming clusters. |
 | 5 | Multiple faces of one person in one asset (bursts, near-duplicates, mirrors) | Risks pseudo-replication inflating n. Likely fix: collapse to one face per person per asset, keeping the highest-quality crop. |

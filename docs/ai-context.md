@@ -6,7 +6,9 @@ Dense, factual orientation for a future AI session picking this project up cold.
 
 A sidecar for an [Immich](https://immich.app) photo library that measures **apparent age minus chronological age** for faces of people whose birth dates are known. The output is the residual, not the age. Immich already knows everyone's real age on every photo; the point is the gap.
 
-**The project is at Phase 0: documentation only. There is no code yet.** Do not describe any script in this repo as existing. `extract.py`, `estimate.py`, `analyse.py` and `writeback.py` are planned, not written.
+**The project is in Phase 1.** What exists: `extract.py`, `verify.py`, the `immich_apparent_age` package (`config`, `immich`, `db`, `quality`), and `tests/test_pipeline.py` — 19 offline tests, all passing, no Immich needed. What does not: `estimate.py`, `analyse.py` and `writeback.py` are planned, not written.
+
+**No extraction has been run against the live server yet.** The code has never made a real Immich request, so nothing in the database and no coverage figure exists. `extract.py --probe` is the first thing to run once an API key is available, and until it passes, treat the client's assumptions as unverified.
 
 ## How to work here
 
@@ -42,7 +44,9 @@ A sidecar for an [Immich](https://immich.app) photo library that measures **appa
 - **Cloud vision APIs are rejected**, not merely unused: coarse `AgeRange` buckets are unusable for a residual, cost scales with a six-figure asset count, and family faces would leave the house (ADR 0002).
 - **Never run a face detector here.** Immich has already detected *and identified* every face; re-detecting would mean re-solving identity. Take the bounding boxes (ADR 0004).
 - **Never write to Immich's Postgres.** The only sanctioned write is optional, namespaced tag write-back in Phase 5 (ADR 0007).
-- **The MCP server trims `faces[]`** out of asset detail. Talk to the REST API for bounding boxes. See `inventory.md` gotcha 1.
+- **Face boxes are not on the asset.** `GET /api/assets/{id}` has no `faces` field anywhere in it. They come from `GET /api/faces?id={assetId}`, which the MCP does not expose — so Phase 1 uses the REST API with an API key. See `inventory.md` gotcha 1 for the correction, and ADR 0004.
+- **The obvious search parameters are deprecated.** Use `filter.personIds.any` rather than top-level `personIds`, and `cursor`/`nextCursor` rather than `page`. The client in `immich_apparent_age/immich.py` falls back automatically.
+- **Run `python extract.py --probe` before trusting a crawl.** It checks the live server against every assumption the client makes, including the one real ambiguity in the spec (whether `/api/faces?id=` wants an asset id).
 - **Bounding boxes are rendition-relative** — scale by `imageWidth`/`imageHeight` from the face record, not the original asset dimensions. See `inventory.md` gotcha 3.
 - **Quality gating is a stored flag**, not an extraction-time filter, so thresholds can be retuned without re-crawling (ADR 0008).
 - **Watch for pseudo-replication.** Bursts and near-duplicates can inflate n for one person and manufacture significance. Open decision 5.
@@ -52,7 +56,7 @@ A sidecar for an [Immich](https://immich.app) photo library that measures **appa
 | Phase | Name | State | Version |
 |---|---|---|---|
 | 0 | Proposal and design | ☑ done | v0.0.1 |
-| 1 | Extract — faces and ground truth | ☐ | v0.1.0 |
+| 1 | Extract — faces and ground truth | ◐ code written and unit-tested; not yet run live | v0.1.0 |
 | 2 | Estimate — apparent age | ☐ | v0.2.0 |
 | 3 | Calibrate and analyse | ☐ | v0.3.0 |
 | 4 | Report | ☐ | v0.4.0 |
