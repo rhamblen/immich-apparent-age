@@ -1,0 +1,36 @@
+# --- local configuration (contains host, API key, identities, birth dates) ---
+config.yaml
+config.yml
+.env
+*.api-key
+secrets.*
+
+# --- derived data: regenerable, and contains face data ---
+*.db
+*.sqlite
+*.sqlite3
+crops/
+cache/
+out/
+reports/
+
+# --- model weights (large, fetched separately) ---
+models/
+*.onnx
+*.pth
+*.pt
+
+# --- python ---
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# --- editors / os ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
