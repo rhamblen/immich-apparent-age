@@ -4,23 +4,41 @@
 # rather than talking to Immich. That is why it can run on a different host
 # from extraction: point this at whichever card actually has room.
 #
+# With Compose Manager, add this as a second project whose compose file is this
+# one merged over the base, or run it by hand:
+#
 #   docker compose -f docker-compose.yml -f docker-compose.gpu.yml \
-#       run --rm iaa estimate.py --config /data/config.yaml
+#       run --rm estimate
 #
 # Requires the Unraid Nvidia Driver plugin on the host, and IAA_GPU_UUID set to
-# the specific card (not "all"): these hosts have more than one GPU, and the
-# wrong one may be fully committed to something else.
+# a specific card - never "all". These hosts have more than one GPU and the
+# others may be fully committed to something else.
 #
 # Phase 2 does not exist yet. This file is here so the deployment decision is
 # recorded and testable the moment estimate.py lands.
 
+name: immich-apparent-age
+
 services:
-  iaa:
+  # Overlaid onto the base file's `extract` so the image, user, environment and
+  # /data mount are inherited rather than restated.
+  extract:
     image: ${IAA_IMAGE_GPU:-ghcr.io/rhamblen/immich-apparent-age:gpu}
     runtime: nvidia
     environment:
-      # A GPU UUID, from `nvidia-smi -L` on the host. Never "all" - pin the
-      # card so this cannot land on one that is already loaded.
-      NVIDIA_VISIBLE_DEVICES: ${IAA_GPU_UUID:?set IAA_GPU_UUID in deploy/.env}
+      NVIDIA_VISIBLE_DEVICES: ${IAA_GPU_UUID:?set IAA_GPU_UUID in .env}
       NVIDIA_DRIVER_CAPABILITIES: compute,utility
+
+  estimate:
+    image: ${IAA_IMAGE_GPU:-ghcr.io/rhamblen/immich-apparent-age:gpu}
+    runtime: nvidia
+    profiles: ["tools"]
+    user: "${PUID:-99}:${PGID:-100}"
+    restart: "no"
+    environment:
+      TZ: ${TZ:-UTC}
+      NVIDIA_VISIBLE_DEVICES: ${IAA_GPU_UUID:?set IAA_GPU_UUID in .env}
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+    volumes:
+      - ${IAA_DATA_DIR:?set IAA_DATA_DIR in .env}:/data
     command: ["estimate.py", "--config", "/data/config.yaml"]

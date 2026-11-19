@@ -33,55 +33,67 @@ CI builds and publishes `base` on every push to `main`, after the test suite pas
 
 CUDA 12.8 covers Blackwell (sm_120), Ada (sm_89) and Ampere (sm_86), so the GPU choice stays open.
 
-## First run
+## First run, via Unraid Compose Manager
 
-On the Immich host:
+**1. Create the data directory** on the Immich host and put `config.yaml` in it, starting from [`config.example.yaml`](../config.example.yaml):
 
 ```bash
 mkdir -p /mnt/user/appdata/immich-apparent-age
-cd /mnt/user/appdata/immich-apparent-age
 ```
 
-Put `config.yaml` there - start from [`config.example.yaml`](../config.example.yaml). The container reads `/data/config.yaml`, and `out/`, `crops/`, `reports/` and `models/` are created alongside it.
+The container reads `/data/config.yaml`; `out/`, `crops/`, `reports/` and `models/` are created alongside it on first run.
 
-Then, from a checkout of this repo:
+**2. Create the stack.** In Compose Manager, add a project named `immich-apparent-age`, then put [`docker-compose.yml`](../deploy/docker-compose.yml) and a `.env` (from [`.env.example`](../deploy/.env.example)) into it. On disk that is:
+
+```
+/boot/config/plugins/compose.manager/projects/immich-apparent-age/
+├── docker-compose.yml
+└── .env
+```
+
+`.env` needs three values at minimum — `IAA_DATA_DIR`, `IMMICH_API_KEY`, and `TZ`. The compose file fails fast with a named error if either of the first two is missing, rather than starting and failing obscurely later.
+
+**3. Probe before you crawl.** This verifies every assumption the client makes about the Immich API, including the one genuine ambiguity in the spec, and everything downstream depends on it:
 
 ```bash
-cp deploy/.env.example deploy/.env    # then edit: data dir, API key, TZ
-cd deploy
+docker compose run --rm probe
 ```
 
-Verify the server before trusting a crawl. This checks every assumption the client makes, including the one genuine ambiguity in the Immich API:
+**4. Find everyone eligible.** Only people with a birth date set in Immich can contribute a residual:
 
 ```bash
-docker compose run --rm iaa extract.py --config /data/config.yaml --probe
+docker compose run --rm discover
 ```
 
-Find everyone who can contribute a residual:
+Paste the stanzas you want into `config.yaml`.
+
+**5. Sample without writing**, to see real ages and crop measurements first:
 
 ```bash
-docker compose run --rm iaa extract.py --config /data/config.yaml --discover-people
+docker compose run --rm sample
 ```
 
-Sample twenty assets per person without writing anything:
+**6. Run the crawl.** This is the long one — **Compose Up** in the Docker tab, or:
 
 ```bash
-docker compose run --rm iaa extract.py --config /data/config.yaml --limit 20 --dry-run -v
+docker compose up -d extract
 ```
 
-Then the real extraction. This is the long one; it is resumable, so interrupting it is safe:
+Only `extract` starts on `up`; everything else sits behind the `tools` profile so it cannot run by accident. The container exits when the crawl finishes, so Unraid showing it stopped is success rather than a crash — read the logs to see the per-person summary.
+
+**7. Verify what you got:**
 
 ```bash
-docker compose run --rm iaa extract.py --config /data/config.yaml
+docker compose run --rm verify
 ```
 
-Contact sheets and the coverage report:
+Then look at the contact sheets in `reports/contact-sheets/` before going any further. Every face should be the right person, upright, and roughly the age printed beneath it. A mis-assigned face produces a confidently wrong residual, because the true age will be the wrong person's — and no amount of later statistics will reveal it.
+
+If the quality thresholds need adjusting after seeing the coverage report, change them in `config.yaml` and re-gate. No re-crawl:
 
 ```bash
-docker compose run --rm iaa verify.py --config /data/config.yaml
+docker compose run --rm regate
 ```
-
-Look at the contact sheets in `reports/contact-sheets/` before going any further. Every face should be the right person, upright, and roughly the age printed beneath it. A mis-assigned face produces a confidently wrong residual, because the true age will be the wrong person's.
 
 ## Phase 2, when it exists
 
@@ -90,8 +102,7 @@ If the GPU host is not the Immich host, `/data` has to be reachable from both. O
 The GPU host also needs the **Unraid Nvidia Driver** plugin, which is what provides `--runtime=nvidia`.
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.gpu.yml \
-    run --rm iaa estimate.py --config /data/config.yaml
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml run --rm estimate
 ```
 
 ## Operational notes

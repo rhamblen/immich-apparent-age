@@ -11,11 +11,14 @@ As a container, which is how it is meant to run — see [`docs/deployment.md`](d
 ```bash
 cp deploy/.env.example deploy/.env    # data dir, API key, TZ
 cd deploy
-docker compose run --rm iaa extract.py --config /data/config.yaml --probe
-docker compose run --rm iaa extract.py --config /data/config.yaml --discover-people
-docker compose run --rm iaa extract.py --config /data/config.yaml
-docker compose run --rm iaa verify.py  --config /data/config.yaml
+docker compose run --rm probe         # check assumptions against your server
+docker compose run --rm discover      # who has a birth date set in Immich
+docker compose run --rm sample        # 20 assets per person, writes nothing
+docker compose up -d extract          # the real crawl
+docker compose run --rm verify        # contact sheets + coverage report
 ```
+
+Only `extract` starts on `up`; the rest sit behind a `tools` profile so they cannot run by accident. These are batch jobs, so a container showing as stopped afterwards is success, not a crash.
 
 Or locally, for development:
 

@@ -1,39 +1,78 @@
 # immich-apparent-age - CPU stack (phases 1, 3, 4)
 #
-# Extraction is network- and disk-bound and uses no GPU, so this stack belongs
-# on whichever host runs Immich: it fetches a preview per asset across a
-# six-figure library, and keeping that on the local bridge rather than the LAN
-# is the single biggest win available. See docs/decisions/0009.
+# Built for the Unraid Compose Manager plugin: drop this and .env into
+#   /boot/config/plugins/compose.manager/projects/immich-apparent-age/
+# and use Compose Up / Compose Down from the Docker tab.
 #
-# One-shot jobs, not a daemon. Run them explicitly:
+# These are BATCH JOBS, not services. "Compose Up" starts the extraction crawl
+# and the container exits when it finishes, so Unraid will show it stopped
+# afterwards - that is success, not a crash. Check the logs to see what it did.
 #
-#   docker compose run --rm iaa extract.py --config /data/config.yaml --probe
-#   docker compose run --rm iaa extract.py --config /data/config.yaml --discover-people
-#   docker compose run --rm iaa extract.py --config /data/config.yaml
-#   docker compose run --rm iaa verify.py  --config /data/config.yaml
+# Only `extract` starts on `up`. Everything else sits behind the `tools`
+# profile so it never runs by accident, and is invoked explicitly:
 #
-# Copy .env.example to .env first. Everything stateful lives in the single
-# /data mount, so the same volume can be handed to the GPU stack later.
+#   docker compose run --rm probe       # check assumptions against the server
+#   docker compose run --rm discover    # who has a birth date set in Immich
+#   docker compose run --rm sample      # 20 assets per person, writes nothing
+#   docker compose run --rm verify      # contact sheets + coverage report
+#   docker compose run --rm regate      # retune quality thresholds, no re-crawl
+#
+# Run `probe` before the first crawl. It verifies every assumption the client
+# makes about the Immich API, and everything downstream depends on it.
+#
+# Extraction belongs on the host that runs Immich: it fetches one preview per
+# asset across a six-figure library, and keeping that off the LAN is the single
+# biggest saving available. No GPU is used in this stack at all.
 
 name: immich-apparent-age
 
+x-iaa: &iaa
+  image: ${IAA_IMAGE:-ghcr.io/rhamblen/immich-apparent-age:latest}
+  # Unraid appdata is nobody:users. Everything written goes to /data, so the
+  # container never needs root.
+  user: "${PUID:-99}:${PGID:-100}"
+  restart: "no"
+  environment:
+    TZ: ${TZ:-UTC}
+    # config.yaml refers to this as ${IMMICH_API_KEY}, so the key stays out of
+    # the config file as well as out of the image.
+    IMMICH_API_KEY: ${IMMICH_API_KEY:?set IMMICH_API_KEY in .env}
+  volumes:
+    # Holds config.yaml, out/ (the database), crops/, reports/ and models/.
+    # One mount carries the whole working state between stages and hosts.
+    - ${IAA_DATA_DIR:?set IAA_DATA_DIR in .env}:/data
+
 services:
-  iaa:
-    image: ${IAA_IMAGE:-ghcr.io/rhamblen/immich-apparent-age:latest}
-    container_name: immich-apparent-age
-    # Unraid appdata is nobody:users. Everything the container writes goes to
-    # /data, so it never needs root.
-    user: "${PUID:-99}:${PGID:-100}"
-    restart: "no"
-    environment:
-      TZ: ${TZ:-UTC}
-      # config.yaml refers to this as ${IMMICH_API_KEY}, so the key stays out
-      # of the config file as well as out of the image.
-      IMMICH_API_KEY: ${IMMICH_API_KEY:?set IMMICH_API_KEY in deploy/.env}
-    volumes:
-      # Holds config.yaml, out/, crops/, reports/ and models/.
-      - ${IAA_DATA_DIR:?set IAA_DATA_DIR in deploy/.env}:/data
-    # A crawl is long and entirely resumable, so it is safe to stop at any
-    # point and restart later; nothing is lost but the asset in flight.
+  # The only service `up` starts. Long, and fully resumable: stop it whenever
+  # the hardware is wanted elsewhere and nothing is lost but the asset in
+  # flight.
+  extract:
+    <<: *iaa
+    command: ["extract.py", "--config", "/data/config.yaml"]
     stop_grace_period: 30s
+
+  probe:
+    <<: *iaa
+    profiles: ["tools"]
     command: ["extract.py", "--config", "/data/config.yaml", "--probe"]
+
+  discover:
+    <<: *iaa
+    profiles: ["tools"]
+    command: ["extract.py", "--config", "/data/config.yaml", "--discover-people"]
+
+  sample:
+    <<: *iaa
+    profiles: ["tools"]
+    command:
+      ["extract.py", "--config", "/data/config.yaml", "--limit", "20", "--dry-run", "-v"]
+
+  verify:
+    <<: *iaa
+    profiles: ["tools"]
+    command: ["verify.py", "--config", "/data/config.yaml"]
+
+  regate:
+    <<: *iaa
+    profiles: ["tools"]
+    command: ["extract.py", "--config", "/data/config.yaml", "--regate"]
