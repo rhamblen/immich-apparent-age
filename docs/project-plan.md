@@ -37,7 +37,7 @@
 
 **What we build.** `extract.py` — walks `POST /api/search/metadata` for the configured people, reads `people[].faces[]` from each asset, computes `true_age = asset_local_date − birth_date`, crops from the rendition the boxes were computed against, scores crop quality, and writes one row per face.
 
-**Prerequisites.** Immich API key with read access; `config.yaml` with person ids and birth dates; birth dates set in Immich for the people who matter, since Immich's own age display is the cross-check.
+**Prerequisites.** Immich API key with read access; `config.yaml` with person ids and birth dates; birth dates set in Immich for the people who matter, since Immich's own age display is the cross-check. Runs from the published CPU image on the host running Immich — no GPU is involved in this phase at all. See [`deployment.md`](deployment.md).
 
 **Deliverables.** Populated `faces` table; a contact sheet of sampled crops for eyeballing; a coverage report of faces per person per decade.
 
@@ -53,7 +53,7 @@
 
 **What we build.** `estimate.py` — batched inference over the stored crops, writing `apparent_age` plus the model name and version alongside each face. Idempotent and resumable; re-running with a new model adds rows rather than overwriting them.
 
-**Prerequisites.** Phase 1 complete; model weights fetched into `models/`.
+**Prerequisites.** Phase 1 complete; model weights fetched into `models/`; the `:gpu` image built, and a GPU with roughly 4 GB free pinned by UUID in `deploy/.env`. This phase reads cached crops and never contacts Immich, so it can run on a different host from extraction — see [ADR 0009](decisions/0009-containerised-deployment.md) and open decision 7.
 
 **Deliverables.** `predictions` table keyed on (face, model version); a runtime and throughput note for the phase log.
 
@@ -116,6 +116,7 @@
 | # | Question | Notes |
 |---|---|---|
 | 1 | MiVOLO or DEX apparent-age weights, or both as a cross-check? | MiVOLO is stronger and can use body context. Running both is the honest option; decide after the Phase 2 sanity check. |
+| 7 | Which GPU host for Phase 2, and does `/data` get shared across hosts? | Deliberately left open: capacity changes hour to hour, so the card is pinned at runtime in `deploy/.env` ([ADR 0009](decisions/0009-containerised-deployment.md)). Current reading favours the idle 20 GB Ada card on the second host, which needs a remote mount for `/data`; the fallback is the Immich host's own 12 GB card at a smaller batch, which needs no mount but contends with a Stable Diffusion instance holding most of its VRAM. |
 | ~~2~~ | ~~Is a GPU available for the estimation pass?~~ | **Settled 2026-11-19:** yes — an RTX 5070 Ti with 16 GB. MiVOLO is practical across the whole library rather than a sample, so Phase 2 plans for it as the primary model. |
 | 3 | Scanned and pre-digital photographs: include or segregate? | They carry the most interesting age range and the worst confounds. Leaning towards extracting them but reporting them as a separate stratum. |
 | 4 | Unnamed people clusters — any role? | No birth date means no residual, so they cannot contribute. Possible later use: apparent age as a sorting aid when naming clusters. |

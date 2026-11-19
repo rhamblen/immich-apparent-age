@@ -1,0 +1,39 @@
+# immich-apparent-age - CPU stack (phases 1, 3, 4)
+#
+# Extraction is network- and disk-bound and uses no GPU, so this stack belongs
+# on whichever host runs Immich: it fetches a preview per asset across a
+# six-figure library, and keeping that on the local bridge rather than the LAN
+# is the single biggest win available. See docs/decisions/0009.
+#
+# One-shot jobs, not a daemon. Run them explicitly:
+#
+#   docker compose run --rm iaa extract.py --config /data/config.yaml --probe
+#   docker compose run --rm iaa extract.py --config /data/config.yaml --discover-people
+#   docker compose run --rm iaa extract.py --config /data/config.yaml
+#   docker compose run --rm iaa verify.py  --config /data/config.yaml
+#
+# Copy .env.example to .env first. Everything stateful lives in the single
+# /data mount, so the same volume can be handed to the GPU stack later.
+
+name: immich-apparent-age
+
+services:
+  iaa:
+    image: ${IAA_IMAGE:-ghcr.io/rhamblen/immich-apparent-age:latest}
+    container_name: immich-apparent-age
+    # Unraid appdata is nobody:users. Everything the container writes goes to
+    # /data, so it never needs root.
+    user: "${PUID:-99}:${PGID:-100}"
+    restart: "no"
+    environment:
+      TZ: ${TZ:-UTC}
+      # config.yaml refers to this as ${IMMICH_API_KEY}, so the key stays out
+      # of the config file as well as out of the image.
+      IMMICH_API_KEY: ${IMMICH_API_KEY:?set IMMICH_API_KEY in deploy/.env}
+    volumes:
+      # Holds config.yaml, out/, crops/, reports/ and models/.
+      - ${IAA_DATA_DIR:?set IAA_DATA_DIR in deploy/.env}:/data
+    # A crawl is long and entirely resumable, so it is safe to stop at any
+    # point and restart later; nothing is lost but the asset in flight.
+    stop_grace_period: 30s
+    command: ["extract.py", "--config", "/data/config.yaml", "--probe"]

@@ -1,0 +1,4 @@
+# Phase 2 (estimate) only. torch and torchvision are installed separately in
+# the Dockerfile from the CUDA-specific index, so they are deliberately absent
+# here. Keep this file out of the CPU image.
+timm>=1.0,<2.0

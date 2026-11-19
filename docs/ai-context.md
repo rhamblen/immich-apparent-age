@@ -6,7 +6,7 @@ Dense, factual orientation for a future AI session picking this project up cold.
 
 A sidecar for an [Immich](https://immich.app) photo library that measures **apparent age minus chronological age** for faces of people whose birth dates are known. The output is the residual, not the age. Immich already knows everyone's real age on every photo; the point is the gap.
 
-**The project is in Phase 1.** What exists: `extract.py`, `verify.py`, the `immich_apparent_age` package (`config`, `immich`, `db`, `quality`), and `tests/test_pipeline.py` — 19 offline tests, all passing, no Immich needed. What does not: `estimate.py`, `analyse.py` and `writeback.py` are planned, not written.
+**The project is in Phase 1.** What exists: `extract.py`, `verify.py`, the `immich_apparent_age` package (`config`, `immich`, `db`, `quality`), `tests/test_pipeline.py` (19 offline tests, all passing, no Immich needed), a two-target `Dockerfile`, the `deploy/` compose stacks, and CI that tests and publishes the CPU image to GHCR. What does not: `estimate.py`, `analyse.py` and `writeback.py` are planned, not written, so the `:gpu` image is defined but not built by CI.
 
 **No extraction has been run against the live server yet.** The code has never made a real Immich request, so nothing in the database and no coverage figure exists. `extract.py --probe` is the first thing to run once an API key is available, and until it passes, treat the client's assumptions as unverified.
 
@@ -28,6 +28,8 @@ A sidecar for an [Immich](https://immich.app) photo library that measures **appa
 | Immich | v3.4.1, LAN host, facial recognition enabled — see [`inventory.md`](inventory.md) |
 | Immich auth | API key, read-only for phases 1–4; from env `IMMICH_API_KEY` |
 | Config | `config.yaml`, gitignored; template at `config.example.yaml` |
+| Deployment | Published image `ghcr.io/rhamblen/immich-apparent-age`; compose in `deploy/`; host specifics in gitignored `deploy/.env`. See [`deployment.md`](deployment.md) |
+| Hosts | Three Unraid servers, four GPUs. Immich and a 12 GB card on the storage host; a 20 GB Ada card on a second host; two 24 GB cards on a third. Capacity is contended and changes hourly — see [`inventory.md`](inventory.md) |
 
 ## The method in six lines
 
@@ -50,6 +52,9 @@ A sidecar for an [Immich](https://immich.app) photo library that measures **appa
 - **Bounding boxes are rendition-relative** — scale by `imageWidth`/`imageHeight` from the face record, not the original asset dimensions. See `inventory.md` gotcha 3.
 - **Quality gating is a stored flag**, not an extraction-time filter, so thresholds can be retuned without re-crawling (ADR 0008).
 - **Watch for pseudo-replication.** Bursts and near-duplicates can inflate n for one person and manufacture significance. Open decision 5.
+- **Phase 1 needs no GPU.** Extraction is network- and disk-bound; only Phase 2 touches a GPU. Do not put a CUDA runtime in the path of extraction (ADR 0009).
+- **Never pin `NVIDIA_VISIBLE_DEVICES=all`.** These hosts have several GPUs and the others may be fully committed. Pin a UUID.
+- **Crop caching is load-bearing twice.** ADR 0008 cached crops so thresholds could be retuned without re-crawling; ADR 0009 then relies on that cache as the handoff that lets Phase 2 run on a different machine.
 
 ## Build phases
 

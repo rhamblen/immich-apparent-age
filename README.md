@@ -6,6 +6,19 @@
 
 ## Quick start
 
+As a container, which is how it is meant to run — see [`docs/deployment.md`](docs/deployment.md):
+
+```bash
+cp deploy/.env.example deploy/.env    # data dir, API key, TZ
+cd deploy
+docker compose run --rm iaa extract.py --config /data/config.yaml --probe
+docker compose run --rm iaa extract.py --config /data/config.yaml --discover-people
+docker compose run --rm iaa extract.py --config /data/config.yaml
+docker compose run --rm iaa verify.py  --config /data/config.yaml
+```
+
+Or locally, for development:
+
 ```bash
 python -m venv .venv && ./.venv/Scripts/python.exe -m pip install -r requirements.txt
 cp config.example.yaml config.yaml          # then edit: host, API key, people
@@ -16,9 +29,21 @@ python extract.py --discover-people         # list people with a birth date set
 python extract.py --limit 20 --dry-run      # sample, measure, write nothing
 python extract.py                           # the real extraction
 python verify.py                            # contact sheets + coverage report
+python -m unittest discover -s tests -t .   # 19 offline tests, no Immich needed
 ```
 
 Run the probe first. It checks every assumption the client makes against your actual server, including the one genuine ambiguity in the Immich spec, and everything downstream depends on it.
+
+## Where it runs
+
+Published to the GitHub Container Registry by CI on every push to `main`, after the tests pass. Two image targets, because the two expensive stages are expensive in different ways:
+
+| Stage | Bound by | Image | Host |
+|---|---|---|---|
+| extract, calibrate, report | network and disk, **no GPU** | `:latest` (~150 MB) | the host running Immich |
+| estimate | GPU | `:gpu` (CUDA 12.8 + torch) | whichever card has room, pinned by UUID |
+
+Estimation reads the crops extraction cached to disk and never contacts Immich, so the two can sit on different machines with a shared `/data` mount as the handoff. Extraction is resumable and idempotent, so a container can be stopped the moment the hardware is wanted elsewhere. See [ADR 0009](docs/decisions/0009-containerised-deployment.md).
 
 ## Why build this
 
@@ -96,10 +121,18 @@ Cloud vision APIs were considered and rejected — see [ADR 0002](docs/decisions
 ├── README.md                  this file
 ├── CHANGELOG.md               Keep a Changelog + SemVer; updated every phase
 ├── config.example.yaml        copy to config.yaml (gitignored) and fill in
+├── Dockerfile                 two targets: base (CPU) and gpu
+├── requirements.txt           phase 1; requirements-gpu.txt is phase 2 only
+├── extract.py                 phase 1 entry point
+├── verify.py                  contact sheets and coverage report
 ├── LICENSE                    MIT
+├── immich_apparent_age/       config, Immich client, database, crop quality
+├── tests/                     offline tests; no Immich required
+├── deploy/                    compose stacks and .env.example
 └── docs/
     ├── project-plan.md        phased roadmap, status table, open decisions
     ├── architecture.md        principles, trade-offs, data flow, schema
+    ├── deployment.md          how and where it runs
     ├── ai-context.md          cold-start orientation for the next AI session
     ├── inventory.md           starting-state facts the build assumes
     ├── decisions/             ADRs — the durable "why"

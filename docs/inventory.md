@@ -39,6 +39,23 @@ Of the first 25 people returned by `GET /api/people`, **8 had `birthDate` set** 
 
 Implication for Phase 1: filling in the missing birth dates in Immich is the cheapest possible way to expand the sample, and it costs nothing but typing. Immich's own per-photo age display is also the free cross-check that the true-age arithmetic is right.
 
+## Host topology
+
+Surveyed 2026-11-19. Addresses, hostnames and GPU ids are deliberately omitted — this repo is public; they live in `deploy/.env`.
+
+Three Unraid servers. Immich and its Postgres run in containers on the **storage host**, whose array also holds the photo libraries; that host additionally has a 12 GB consumer GPU running a Stable Diffusion instance. A **second host** carries a 20 GB workstation Ada card. A **third, larger host** (62 GB RAM) carries two 24 GB cards and several ComfyUI containers.
+
+GPU capacity at the time of the survey, which is the point — it will not hold:
+
+| Card | VRAM in use | Note |
+|---|---|---|
+| 24 GB consumer (large host) | 22.3 / 24 GB | Fully committed to a running Stable Diffusion instance. |
+| 24 GB workstation (large host) | 0.9 / 25.6 GB, 0% util, 6.8 W | Idle. Excluded by preference, not by capacity. |
+| 20 GB workstation Ada (second host) | unreadable | Its ComfyUI container is up but not serving, so the card is almost certainly idle. |
+| 12 GB consumer (Immich host) | **1.1 GB free of 11.6** | A Stable Diffusion instance is holding models. Idle is not the same as free. |
+
+Implications, both acted on in [ADR 0009](decisions/0009-containerised-deployment.md): extraction belongs on the Immich host because it is network-bound and needs no GPU at all, and the GPU for estimation must be a runtime choice pinned by UUID, because this table changes hour to hour.
+
 ## API shape, as observed
 
 - `GET /api/people` returns `id`, `name`, `birthDate`, `isHidden`, `thumbnailPath`, paginated with a `next` cursor, and reports visible/hidden totals.

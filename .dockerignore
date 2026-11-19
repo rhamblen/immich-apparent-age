@@ -1,0 +1,24 @@
+.git
+.github
+.venv
+venv
+
+# Local state and secrets - never in an image layer.
+config.yaml
+config.yml
+.env
+out/
+crops/
+reports/
+models/
+*.db
+*.sqlite*
+
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+docs/
+*.md
+!README.md

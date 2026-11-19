@@ -12,7 +12,10 @@ One file per significant choice, in the form *Status · Date · Context · Decis
 | [0006](0006-same-photo-comparison-as-primary-design.md) | Same-photo comparison is the primary design | Accepted |
 | [0007](0007-sidecar-sqlite-as-system-of-record.md) | A sidecar SQLite database is the system of record | Accepted |
 | [0008](0008-quality-gating-as-stored-flag.md) | Quality gating is a stored flag, not an extraction filter | Accepted |
+| [0009](0009-containerised-deployment.md) | Ship as a published container; split CPU and GPU stages across hosts | Accepted |
 
 The two that matter most if you read only two: **0005**, because without it the results are a confident artefact, and **0006**, because it is the only design here that removes confounds rather than correcting for them.
+
+An accident worth noting: **0008** split quality gating from extraction so thresholds could be retuned without re-crawling. That decision cached crops to disk, which later turned out to be what lets extraction and estimation run on different machines entirely — **0009**. The second decision was nearly free because of the first.
 
 Questions still open are listed at the foot of [`../project-plan.md`](../project-plan.md). Settle them with a new ADR.

@@ -40,10 +40,31 @@ Immich server**, so no extraction figures exist yet.
   v3.2.0 in favour of `filter.personIds`, and `page` in favour of `cursor`/`nextCursor`. The
   client prefers the modern shape and falls back automatically.
 
+### Deployment
+
+- `Dockerfile` with two targets: `base` (CPU, ~150 MB, phases 1/3/4) and `gpu` (CUDA 12.8 +
+  torch, phase 2 only). Extraction is network- and disk-bound and uses no GPU, so it is not
+  made to carry a CUDA runtime.
+- `.github/workflows/ci.yml` — runs the test suite, then builds and publishes the CPU image
+  to `ghcr.io/rhamblen/immich-apparent-age` (`latest`, short SHA, semver on tags) and
+  smoke-tests the published image by running the tests inside it. The `gpu` target is not
+  built until `estimate.py` exists.
+- `deploy/docker-compose.yml` (CPU) and `deploy/docker-compose.gpu.yml` (GPU overlay), with
+  `deploy/.env.example`. One `/data` mount carries config, database, crops, models and
+  reports, so the whole working set moves between stages and hosts together.
+- `docs/deployment.md` — which host runs what, how to pick a GPU, first-run commands.
+- ADR 0009 records the decision: publish rather than hand-build, split the CPU and GPU
+  stages, run extraction on the Immich host, and pin the GPU by UUID at runtime because
+  capacity changes hour to hour.
+
 ### Notes
 
-- Open decision 2 is settled: a 16 GB RTX 5070 Ti is available, so Phase 2 plans for MiVOLO
-  across the whole library rather than a sample.
+- Open decision 2 is settled: a GPU is available, so Phase 2 plans for MiVOLO across the
+  whole library rather than a sample.
+- Open decision 7 added, and deliberately left open: which GPU host runs Phase 2, and
+  whether `/data` is shared across hosts. A survey of the estate found one 24 GB card fully
+  committed, a 12 GB card with 1.1 GB free behind a Stable Diffusion instance, and a 20 GB
+  Ada card idle — so the card is a runtime choice, not a build-time one.
 
 ## [0.0.1] — 2026-11-19
 
